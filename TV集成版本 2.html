@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐷 影视私人定制版</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dplayer@latest"></script>
+    <style>
+        :root { --primary: #ff85a2; --bg: #0a0a0a; --card: #1a1a1a; }
+        body { font-family: 'PingFang SC', sans-serif; background: var(--bg); color: #fff; margin: 0; padding: 15px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        header { background: var(--card); padding: 20px; border-radius: 12px; border: 1px solid #333; margin-bottom: 20px; }
+        .top-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; }
+        .logo { font-size: 32px; cursor: pointer; }
+        .search-box { display: flex; gap: 10px; flex: 1; max-width: 500px; }
+        input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; outline: none; }
+        input:focus { border-color: var(--primary); }
+        .btn { padding: 8px 20px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; background: var(--primary); color: #fff; }
+
+        #player-wrap { display: none; margin-bottom: 25px; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid #333; }
+        #dplayer { width: 100%; height: 500px; }
+        .p-bar { padding: 12px 20px; background: #1a1a1a; display: flex; justify-content: space-between; align-items: center; }
+        
+        .episode-container { padding: 15px 20px; background: #151515; border-top: 1px solid #333; }
+        .episode-grid { display: flex; flex-wrap: wrap; gap: 8px; max-height: 200px; overflow-y: auto; padding: 5px; }
+        .ep-btn { background: #222; color: #ccc; border: 1px solid #333; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+        .ep-btn:hover { border-color: var(--primary); }
+        .ep-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+        .history-section { margin-bottom: 30px; display: none; }
+        .history-grid { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px; }
+        .history-card { flex: 0 0 110px; background: #1a1a1a; border-radius: 8px; overflow: hidden; cursor: pointer; border: 1px solid #333; }
+        .history-card img { width: 100%; height: 150px; object-fit: cover; }
+        .history-card div { font-size: 11px; padding: 5px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #aaa; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 20px; }
+        .movie-card { background: var(--card); border-radius: 10px; overflow: hidden; cursor: pointer; border: 1px solid #333; position: relative; transition: 0.2s; }
+        .movie-card:hover { border-color: var(--primary); transform: translateY(-3px); }
+        .movie-card img { width: 100%; height: 230px; object-fit: cover; }
+        .movie-card .meta { padding: 10px; text-align: center; font-size: 12px; }
+        .tag { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,0.8); color: var(--primary); font-size: 10px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--primary); }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="top-row">
+            <div class="logo" onclick="location.reload()">🐷</div>
+            <div class="search-box">
+                <input type="text" id="kw" placeholder="输入片名后按回车搜索..." onkeydown="if(event.keyCode==13) search()">
+                <button class="btn" onclick="search()">搜索</button>
+            </div>
+            <select id="apiIdx" onchange="refresh()" style="background:#000; color:#fff; border:1px solid #444; padding:8px; border-radius:6px; cursor:pointer;">
+                <option value="0">360资源站</option>
+                <option value="1">暴风资源站</option>
+                <option value="2">量子资源站</option>
+            </select>
+        </div>
+    </header>
+
+    <div id="histSection" class="history-section">
+        <div style="font-size:14px; color:var(--primary); margin-bottom:10px; font-weight:bold;">🕙 最近看过</div>
+        <div class="history-grid" id="historyGrid"></div>
+    </div>
+
+    <div id="player-wrap">
+        <div class="p-bar">
+            <span id="v-title" style="color:var(--primary); font-size:14px; font-weight:bold;">正在播放...</span>
+            <button onclick="closeP()" style="background:#f44; color:#fff; border:none; padding:4px 10px; border-radius:4px; cursor:pointer;">关闭</button>
+        </div>
+        <div id="dplayer"></div>
+        <div class="episode-container" id="epBox" style="display:none;">
+            <div class="episode-grid" id="episodeGrid"></div>
+        </div>
+    </div>
+
+    <div style="margin-bottom:15px; font-size:14px; color:#666;">✨ 最新更新资源</div>
+    <div class="grid" id="mainGrid"></div>
+</div>
+
+<script>
+    // 核心修复 1：准确的 Vercel 代理地址
+    const PROXY = "https://my-proxy-lac.vercel.app/"; 
+    const APIS = [
+        "https://360zyzz.com/api.php/provide/vod/",
+        "https://bfzyapi.com/api.php/provide/vod/",
+        "https://cj.lziapi.com/api.php/provide/vod/"
+    ];
+    let dp = null;
+
+    window.onload = () => { renderHistory(); refresh(); };
+    function refresh() { fetchData(APIS[document.getElementById('apiIdx').value], `&h=24`); }
+
+    // 核心修复 2：优化 Fetch 逻辑，跳过根目录预检，直连接口
+    async function fetchData(api, params) {
+        const grid = document.getElementById('mainGrid');
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px; color:#666;">正在同步 Vercel 资源节点...</div>`;
+        try {
+            const res = await fetch(`${PROXY}${api}?ac=videolist${params}`);
+            const data = await res.json();
+            grid.innerHTML = "";
+            if(!data.list || data.list.length === 0) {
+                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px; color:#666;">该线路暂无资源，请切换上方线路</div>`;
+                return;
+            }
+            data.list.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'movie-card';
+                card.innerHTML = `<div class="tag">${item.type_name}</div><img src="${item.vod_pic}"><div class="meta">${item.vod_name}</div>`;
+                card.onclick = () => initMedia(item);
+                grid.appendChild(card);
+            });
+        } catch (e) { 
+            grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:#ff4444;">
+                ⚠️ 节点连接异常<br><br>
+                <button class="btn" onclick="location.reload()">点击刷新页面</button>
+            </div>`; 
+        }
+    }
+
+    async function search() {
+        const kw = document.getElementById('kw').value;
+        if(kw) fetchData(APIS[document.getElementById('apiIdx').value], `&wd=${encodeURIComponent(kw)}`);
+    }
+
+    function initMedia(item) {
+        document.getElementById('player-wrap').style.display = 'block';
+        document.getElementById('v-title').innerText = item.vod_name;
+        window.scrollTo({top: 0, behavior: 'smooth'});
+
+        const epBox = document.getElementById('epBox');
+        const epGrid = document.getElementById('episodeGrid');
+        epGrid.innerHTML = "";
+
+        // 解析选集逻辑加固
+        const rawList = item.vod_play_url.split('#').filter(l => l.includes('$'));
+        if (rawList.length > 0) {
+            epBox.style.display = 'block';
+            rawList.forEach((line, index) => {
+                const parts = line.split('$');
+                const btn = document.createElement('button');
+                btn.className = 'ep-btn';
+                btn.innerText = parts[0];
+                btn.onclick = () => {
+                    document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    playUrl(parts[1]);
+                };
+                epGrid.appendChild(btn);
+                if (index === 0) { btn.classList.add('active'); playUrl(parts[1]); }
+            });
+        }
+        saveToHistory(item);
+    }
+
+    function playUrl(videoUrl) {
+        if (dp) dp.destroy();
+        dp = new DPlayer({
+            container: document.getElementById('dplayer'),
+            autoplay: true,
+            video: { url: videoUrl, type: 'hls' }
+        });
+    }
+
+    function saveToHistory(item) {
+        let history = JSON.parse(localStorage.getItem('pig_history') || '[]');
+        history = history.filter(h => h.vod_id !== item.vod_id);
+        history.unshift(item);
+        localStorage.setItem('pig_history', JSON.stringify(history.slice(0, 10)));
+        renderHistory();
+    }
+
+    function renderHistory() {
+        const history = JSON.parse(localStorage.getItem('pig_history') || '[]');
+        const section = document.getElementById('histSection');
+        if (history.length === 0) return;
+        section.style.display = 'block';
+        document.getElementById('historyGrid').innerHTML = history.map(item => `
+            <div class="history-card" onclick='initMedia(${JSON.stringify(item)})'>
+                <img src="${item.vod_pic}"><div>${item.vod_name}</div>
+            </div>
+        `).join('');
+    }
+
+    function closeP() { if(dp) dp.pause(); document.getElementById('player-wrap').style.display = 'none'; }
+</script>
+</body>
+</html>
