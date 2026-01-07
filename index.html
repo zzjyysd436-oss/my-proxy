@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🐷 私人影院</title>
+    <title>🐷 私人影院 (稳定版)</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer@latest"></script>
     <style>
@@ -14,67 +14,51 @@
         .search-box { display: flex; gap: 10px; flex: 1; }
         input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; outline: none; }
         .btn { padding: 8px 20px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; background: var(--primary); color: #fff; }
-        
-        #player-wrap { display: none; margin-bottom: 25px; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid #333; }
-        #dplayer { width: 100%; height: 450px; }
-        
+        #player-wrap { display: none; margin-bottom: 25px; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid #333; position: relative; }
+        #dplayer { width: 100%; height: 480px; }
+        #iframe-player { width: 100%; height: 480px; border: none; display: none; }
         .episode-container { padding: 15px; background: #151515; }
         .episode-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); gap: 8px; max-height: 200px; overflow-y: auto; }
         .ep-btn { background: #222; color: #ccc; border: 1px solid #333; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 11px; text-align: center; }
         .ep-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-
-        .section-title { margin: 10px 0 15px 5px; color: #888; font-size: 14px; display: flex; align-items: center; gap: 5px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
         .movie-card { background: var(--card); border-radius: 8px; overflow: hidden; cursor: pointer; border: 1px solid #333; transition: 0.2s; }
-        .movie-card:hover { border-color: var(--primary); transform: translateY(-3px); }
         .movie-card img { width: 100%; height: 200px; object-fit: cover; }
         .movie-card .meta { padding: 8px; text-align: center; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     </style>
 </head>
 <body>
-
 <div class="container">
     <header>
         <div style="font-size: 24px; cursor: pointer;" onclick="location.reload()">🐷</div>
         <div class="search-box">
-            <input type="text" id="kw" placeholder="输入你想看的片名..." onkeydown="if(event.keyCode==13) search()">
+            <input type="text" id="kw" placeholder="输入片名搜索..." onkeydown="if(event.keyCode==13) search()">
             <button class="btn" onclick="search()">搜索</button>
         </div>
     </header>
-
     <div id="player-wrap">
         <div id="dplayer"></div>
-        <div class="episode-container">
-            <div id="episodeGrid" class="episode-grid"></div>
-        </div>
+        <iframe id="iframe-player" allowfullscreen="true"></iframe>
+        <div class="episode-container"><div id="episodeGrid" class="episode-grid"></div></div>
     </div>
-
-    <div class="section-title" id="gridTitle">✨ 最近更新资源</div>
     <div id="mainGrid" class="grid"></div>
 </div>
 
 <script>
-    // 强制切回你最习惯的量子资源 API
     const API_URL = "https://cj.lziapi.com/api.php/provide/vod/";
+    const JX_API = "https://jx.jsonplayer.com/player/?url="; // 云端解析引擎
     let dp = null;
 
-    // 页面加载自动获取首页更新
     window.onload = () => fetchData(`&h=24`);
 
     async function fetchData(params) {
         const grid = document.getElementById('mainGrid');
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:#666;">正在同步最新影视数据...</div>`;
-        
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px;">正在加载...</div>`;
         try {
             const res = await fetch(`${API_URL}?ac=videolist${params}`);
             const data = await res.json();
-            
-            if(!data.list || data.list.length === 0) {
-                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px;">未搜到相关内容，请尝试缩短关键词。</div>`;
-                return;
-            }
-
             grid.innerHTML = "";
+            if(!data.list) return;
             data.list.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'movie-card';
@@ -82,17 +66,12 @@
                 card.onclick = () => showEpisodes(item);
                 grid.appendChild(card);
             });
-        } catch (e) {
-            grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:red;">接口连通失败，请检查网络或稍后再试。</div>`;
-        }
+        } catch (e) { grid.innerHTML = "加载失败，请刷新"; }
     }
 
     function search() {
         const val = document.getElementById('kw').value;
-        if(val) {
-            document.getElementById('gridTitle').innerText = `🔍 “${val}” 的搜索结果`;
-            fetchData(`&wd=${encodeURIComponent(val)}`);
-        }
+        if(val) fetchData(`&wd=${encodeURIComponent(val)}`);
     }
 
     function showEpisodes(item) {
@@ -100,8 +79,6 @@
         window.scrollTo({top: 0, behavior: 'smooth'});
         const epGrid = document.getElementById('episodeGrid');
         epGrid.innerHTML = "";
-
-        // 恢复最初的集数解析逻辑，解决集数显示问题
         const rawUrl = item.vod_play_url.split('$$$')[0];
         const eps = rawUrl.split('#');
 
@@ -114,22 +91,32 @@
             btn.onclick = () => {
                 document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                playVideo(info[1]);
+                play(info[1]);
             };
             epGrid.appendChild(btn);
             if(index === 0) btn.click();
         });
     }
 
-    function playVideo(url) {
+    function play(url) {
+        // 逻辑：优先尝试 DPlayer 播放，如果失败则切换到万能解析 iframe
+        document.getElementById('dplayer').style.display = 'block';
+        document.getElementById('iframe-player').style.display = 'none';
+        
         if (dp) dp.destroy();
         dp = new DPlayer({
             container: document.getElementById('dplayer'),
             autoplay: true,
-            video: { 
-                url: url, 
-                type: 'hls'
-            }
+            video: { url: url, type: 'hls' }
+        });
+
+        // 核心：监听加载失败事件
+        dp.on('error', function() {
+            console.log("直连失败，启动云端解析...");
+            document.getElementById('dplayer').style.display = 'none';
+            const ifr = document.getElementById('iframe-player');
+            ifr.style.display = 'block';
+            ifr.src = JX_API + url;
         });
     }
 </script>
