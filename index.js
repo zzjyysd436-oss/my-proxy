@@ -1,32 +1,34 @@
-// Vercel 专用代理代码
 export default async function handler(req, res) {
-    // 允许跨域
-    res.setHeader('Access-Control-Allow-Credentials', true);
+    // 设置允许跨域的头信息
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-    res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', '*');
 
-    if (req.method === 'OPTIONS') {
-        res.status(200).end();
-        return;
-    }
+    // 处理预检请求
+    if (req.method === 'OPTIONS') return res.status(200).end();
 
-    // 获取目标 URL（从路径中提取）
-    const targetUrl = req.url.split('?')[0].slice(1) + (req.url.includes('?') ? '?' + req.url.split('?')[1] : '');
-
+    // 从 URL 路径中提取目标地址
+    // 比如：https://your-vercel.app/https://api.com
+    const targetUrl = req.url.slice(1);
+    
     if (!targetUrl.startsWith('http')) {
-        return res.status(200).send('Vercel 备用代理已就绪！');
+        return res.status(200).send('🚀 增强版代理运行中...');
     }
 
     try {
         const response = await fetch(targetUrl, {
             method: req.method,
-            headers: req.headers,
+            headers: {
+                // 模拟真实浏览器，防止资源站拦截
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'zh-CN,zh;q=0.9'
+            }
         });
 
         const data = await response.arrayBuffer();
         res.status(response.status).send(Buffer.from(data));
-    } catch (error) {
-        res.status(500).send('代理错误: ' + error.message);
+    } catch (e) {
+        res.status(500).send('代理抓取失败: ' + e.message);
     }
 }
