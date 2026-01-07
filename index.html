@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🐷 影视私人定制版</title>
+    <title>🐷 影视私人定制版 (极速版)</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer@latest"></script>
     <style>
@@ -50,7 +50,7 @@
                 <button class="btn" onclick="search()">搜索</button>
             </div>
             <select id="apiIdx" onchange="refresh()" style="background:#000; color:#fff; border:1px solid #444; padding:8px; border-radius:6px; cursor:pointer;">
-                <option value="2">量子资源 (最稳定)</option>
+                <option value="2">量子资源 (直连秒开)</option>
                 <option value="0">360资源站</option>
                 <option value="1">暴风资源站</option>
             </select>
@@ -76,8 +76,8 @@
 </div>
 
 <script>
-    // 已更新为 image_976f8a.png 所示的新域名
-    const PROXY = "https://my-proxy-git-main-dannys-projects-1ee41d4a.vercel.app/"; 
+    // 核心修改 1：PROXY 设置为空，绕过不稳定的 Vercel 节点
+    const PROXY = ""; 
     const APIS = [
         "https://360zyzz.com/api.php/provide/vod/",
         "https://bfzyapi.com/api.php/provide/vod/",
@@ -88,12 +88,15 @@
 
     window.onload = () => { renderHistory(); refresh(); };
 
+    // 核心修改 2：直接请求接口，解决“节点超时”问题
     async function fetchData(api, params) {
         const grid = document.getElementById('mainGrid');
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px; color:#666;">正在连接 Vercel 节点...</div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px; color:#666;">正在直连资源站...</div>`;
         
         try {
-            const res = await fetch(`${PROXY}${api}?ac=videolist${params}`);
+            // 直接拼接 URL
+            const url = `${api}?ac=videolist${params}`;
+            const res = await fetch(url);
             if (!res.ok) throw new Error();
             const data = await res.json();
             
@@ -112,8 +115,8 @@
             });
         } catch (e) {
             grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:#ff4444;">
-                ⚠️ 节点连接超时<br><br>
-                <small>请先尝试手动访问以唤醒节点：<br><a href="${PROXY}https://www.google.com/favicon.ico" target="_blank" style="color:#fff">${PROXY}</a></small><br><br>
+                ⚠️ 直连请求被拦截<br><br>
+                <small>建议：请确保浏览器没有开启强力广告拦截插件，或切换右上角线路试试</small><br><br>
                 <button class="btn" onclick="refresh()">点击重试</button>
             </div>`;
         }
