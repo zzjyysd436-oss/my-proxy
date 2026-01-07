@@ -46,13 +46,13 @@
         <div class="top-row">
             <div class="logo" onclick="location.reload()">🐷</div>
             <div class="search-box">
-                <input type="text" id="kw" placeholder="输入片名搜索..." onkeydown="if(event.keyCode==13) search()">
+                <input type="text" id="kw" placeholder="输入片名后按回车搜索..." onkeydown="if(event.keyCode==13) search()">
                 <button class="btn" onclick="search()">搜索</button>
             </div>
-            <select id="apiIdx" onchange="refresh()" style="background:#000; color:#fff; border:1px solid #444; padding:8px; border-radius:6px;">
+            <select id="apiIdx" onchange="refresh()" style="background:#000; color:#fff; border:1px solid #444; padding:8px; border-radius:6px; cursor:pointer;">
                 <option value="2">量子资源 (最稳定)</option>
-                <option value="0">360资源 (备用)</option>
-                <option value="1">暴风资源 (较慢)</option>
+                <option value="0">360资源站</option>
+                <option value="1">暴风资源站</option>
             </select>
         </div>
     </header>
@@ -76,8 +76,8 @@
 </div>
 
 <script>
-    // 自动修正代理地址逻辑
-    const PROXY = "https://my-proxy-lac.vercel.app/"; 
+    // 已更新为 image_976f8a.png 所示的新域名
+    const PROXY = "https://my-proxy-git-main-dannys-projects-1ee41d4a.vercel.app/"; 
     const APIS = [
         "https://360zyzz.com/api.php/provide/vod/",
         "https://bfzyapi.com/api.php/provide/vod/",
@@ -90,21 +90,16 @@
 
     async function fetchData(api, params) {
         const grid = document.getElementById('mainGrid');
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px; color:#666;">资源加载中...</div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px; color:#666;">正在连接 Vercel 节点...</div>`;
         
         try {
-            // 增加控制台调试
-            console.log("正在请求:", `${PROXY}${api}?ac=videolist${params}`);
-            const res = await fetch(`${PROXY}${api}?ac=videolist${params}`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            
-            if (!res.ok) throw new Error("HTTP ERROR");
+            const res = await fetch(`${PROXY}${api}?ac=videolist${params}`);
+            if (!res.ok) throw new Error();
             const data = await res.json();
             
             grid.innerHTML = "";
             if(!data.list || data.list.length === 0) {
-                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px; color:#666;">未搜索到结果，请换个词试试</div>`;
+                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px; color:#666;">未搜到结果，请尝试切换线路</div>`;
                 return;
             }
 
@@ -116,11 +111,10 @@
                 grid.appendChild(card);
             });
         } catch (e) {
-            console.error(e);
             grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:#ff4444;">
                 ⚠️ 节点连接超时<br><br>
-                <small>请尝试：1. 切换右侧线路 2. 检查手机网络 3. 稍后重试</small><br><br>
-                <button class="btn" onclick="refresh()">重试</button>
+                <small>请先尝试手动访问以唤醒节点：<br><a href="${PROXY}https://www.google.com/favicon.ico" target="_blank" style="color:#fff">${PROXY}</a></small><br><br>
+                <button class="btn" onclick="refresh()">点击重试</button>
             </div>`;
         }
     }
