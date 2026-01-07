@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🐷 私人影院 (全协议兼容版)</title>
+    <title>🐷 私人影院</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer@latest"></script>
     <style>
@@ -14,100 +14,79 @@
         .search-box { display: flex; gap: 10px; flex: 1; }
         input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; outline: none; }
         .btn { padding: 8px 20px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; background: var(--primary); color: #fff; }
-        
         #player-wrap { display: none; margin-bottom: 25px; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid #333; }
         #dplayer { width: 100%; height: 450px; }
-        
         .episode-container { padding: 15px; background: #151515; }
-        .episode-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 8px; max-height: 200px; overflow-y: auto; }
-        .ep-btn { background: #222; color: #ccc; border: 1px solid #333; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 12px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .episode-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); gap: 8px; max-height: 200px; overflow-y: auto; }
+        .ep-btn { background: #222; color: #ccc; border: 1px solid #333; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px; text-align: center; }
         .ep-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px; }
-        .movie-card { background: var(--card); border-radius: 8px; overflow: hidden; cursor: pointer; border: 1px solid #333; transition: 0.3s; }
-        .movie-card:hover { border-color: var(--primary); transform: scale(1.02); }
-        .movie-card img { width: 100%; height: 210px; object-fit: cover; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
+        .movie-card { background: var(--card); border-radius: 8px; overflow: hidden; cursor: pointer; border: 1px solid #333; }
+        .movie-card img { width: 100%; height: 200px; object-fit: cover; }
         .movie-card .meta { padding: 8px; text-align: center; font-size: 12px; }
     </style>
 </head>
 <body>
-
 <div class="container">
     <header>
-        <div style="font-size: 24px;" onclick="location.reload()">🐷</div>
+        <div style="font-size: 24px; cursor: pointer;" onclick="location.reload()">🐷</div>
         <div class="search-box">
-            <input type="text" id="kw" placeholder="搜索片名（如：罚罪）..." onkeydown="if(event.keyCode==13) search()">
+            <input type="text" id="kw" placeholder="输入搜索词..." onkeydown="if(event.keyCode==13) search()">
             <button class="btn" onclick="search()">搜索</button>
         </div>
     </header>
-
     <div id="player-wrap">
         <div id="dplayer"></div>
-        <div class="episode-container">
-            <div style="margin-bottom:10px; font-size:13px; color:#888;">选集（如播放失败请切换集数）：</div>
-            <div id="episodeGrid" class="episode-grid"></div>
-        </div>
+        <div class="episode-container"><div id="episodeGrid" class="episode-grid"></div></div>
     </div>
-
-    <div class="grid" id="mainGrid"></div>
+    <div id="mainGrid" class="grid"></div>
 </div>
 
 <script>
-    // 采用更稳定的双线路备份方案
-    const API_LIST = [
-        "https://api.tiankongapi.com/api.php/provide/vod/",
-        "https://www.hongniuzy2.com/api.php/provide/vod/"
-    ];
+    // 使用最稳定的两个直连源，不带任何代理
+    const API_SOURCE = "https://api.tiankongapi.com/api.php/provide/vod/";
     let dp = null;
 
-    window.onload = () => fetchData(`&h=24`, 0);
+    // 页面加载默认显示最新资源
+    window.onload = () => { search(true); };
 
-    async function fetchData(params, apiIndex) {
+    async function search(isInit = false) {
+        const kw = document.getElementById('kw').value;
         const grid = document.getElementById('mainGrid');
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px;">正在连接线路 ${apiIndex + 1}...</div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px;">正在连接影视库...</div>`;
         
+        let url = `${API_SOURCE}?ac=videolist`;
+        if(!isInit && kw) url += `&wd=${encodeURIComponent(kw)}`;
+        else url += `&h=24`;
+
         try {
-            const res = await fetch(`${API_LIST[apiIndex]}?ac=videolist${params}`);
+            const res = await fetch(url);
             const data = await res.json();
-            
+            grid.innerHTML = "";
             if(!data.list || data.list.length === 0) {
-                // 如果第一条线没搜到，自动尝试第二条线
-                if(apiIndex < API_LIST.length - 1) {
-                    fetchData(params, apiIndex + 1);
-                } else {
-                    grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px;">未搜到资源，请检查片名是否有误。</div>`;
-                }
+                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px;">未搜到内容，请换个词试试</div>`;
                 return;
             }
-
-            grid.innerHTML = "";
             data.list.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'movie-card';
                 card.innerHTML = `<img src="${item.vod_pic}"><div class="meta">${item.vod_name}</div>`;
-                card.onclick = () => showEpisodes(item);
+                card.onclick = () => initPlay(item);
                 grid.appendChild(card);
             });
         } catch (e) {
-            if(apiIndex < API_LIST.length - 1) fetchData(params, apiIndex + 1);
+            grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px;">❌ 连接超时，请刷新页面重试</div>`;
         }
     }
 
-    function search() {
-        const val = document.getElementById('kw').value;
-        if(val) fetchData(`&wd=${encodeURIComponent(val)}`, 0);
-    }
-
-    function showEpisodes(item) {
+    function initPlay(item) {
         document.getElementById('player-wrap').style.display = 'block';
         window.scrollTo({top: 0, behavior: 'smooth'});
-        
         const epGrid = document.getElementById('episodeGrid');
         epGrid.innerHTML = "";
 
-        // 精准过滤解析算法，剔除广告线路和重复项
+        // 挑选 HLS 直连线路
         const lines = item.vod_play_url.split('$$$');
-        // 优先选择包含 m3u8 的线路
         const bestLine = lines.find(l => l.includes('m3u8')) || lines[0];
         const eps = bestLine.split('#');
 
@@ -120,39 +99,15 @@
             btn.onclick = () => {
                 document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                playVideo(info[1]);
+                if (dp) dp.destroy();
+                dp = new DPlayer({
+                    container: document.getElementById('dplayer'),
+                    autoplay: true,
+                    video: { url: info[1], type: 'hls' }
+                });
             };
             epGrid.appendChild(btn);
             if(index === 0) btn.click();
-        });
-    }
-
-    function playVideo(url) {
-        if (dp) dp.destroy();
-        
-        // 解决加载失败的关键：强制使用 HLS 模式并禁用跨域凭据
-        dp = new DPlayer({
-            container: document.getElementById('dplayer'),
-            autoplay: true,
-            video: {
-                url: url,
-                type: 'customHls',
-                customType: {
-                    customHls: function (video, player) {
-                        const hls = new Hls({
-                            xhrSetup: function(xhr) {
-                                xhr.withCredentials = false; // 核心修复：防止因 Cookie 导致的跨域拦截
-                            }
-                        });
-                        hls.loadSource(video.src);
-                        hls.attachMedia(video);
-                    }
-                }
-            }
-        });
-
-        dp.on('error', () => {
-            alert('当前选集播放失败，请尝试点击其他集数或切换搜索词。');
         });
     }
 </script>
