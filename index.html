@@ -14,80 +14,98 @@
         .search-box { display: flex; gap: 10px; flex: 1; }
         input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; outline: none; }
         .btn { padding: 8px 20px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; background: var(--primary); color: #fff; }
+        
         #player-wrap { display: none; margin-bottom: 25px; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid #333; }
         #dplayer { width: 100%; height: 450px; }
+        
         .episode-container { padding: 15px; background: #151515; }
         .episode-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); gap: 8px; max-height: 200px; overflow-y: auto; }
-        .ep-btn { background: #222; color: #ccc; border: 1px solid #333; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 12px; text-align: center; }
+        .ep-btn { background: #222; color: #ccc; border: 1px solid #333; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 11px; text-align: center; }
         .ep-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+        .section-title { margin: 10px 0 15px 5px; color: #888; font-size: 14px; display: flex; align-items: center; gap: 5px; }
         .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
         .movie-card { background: var(--card); border-radius: 8px; overflow: hidden; cursor: pointer; border: 1px solid #333; transition: 0.2s; }
-        .movie-card:hover { border-color: var(--primary); }
+        .movie-card:hover { border-color: var(--primary); transform: translateY(-3px); }
         .movie-card img { width: 100%; height: 200px; object-fit: cover; }
-        .movie-card .meta { padding: 8px; text-align: center; font-size: 12px; }
+        .movie-card .meta { padding: 8px; text-align: center; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     </style>
 </head>
 <body>
+
 <div class="container">
     <header>
         <div style="font-size: 24px; cursor: pointer;" onclick="location.reload()">🐷</div>
         <div class="search-box">
-            <input type="text" id="kw" placeholder="输入片名..." onkeydown="if(event.keyCode==13) search()">
+            <input type="text" id="kw" placeholder="输入你想看的片名..." onkeydown="if(event.keyCode==13) search()">
             <button class="btn" onclick="search()">搜索</button>
         </div>
     </header>
+
     <div id="player-wrap">
         <div id="dplayer"></div>
-        <div class="episode-container"><div id="episodeGrid" class="episode-grid"></div></div>
+        <div class="episode-container">
+            <div id="episodeGrid" class="episode-grid"></div>
+        </div>
     </div>
+
+    <div class="section-title" id="gridTitle">✨ 最近更新资源</div>
     <div id="mainGrid" class="grid"></div>
 </div>
 
 <script>
-    // 回到最初最稳定的 API 接口
-    const API_SOURCE = "https://cj.lziapi.com/api.php/provide/vod/";
+    // 强制切回你最习惯的量子资源 API
+    const API_URL = "https://cj.lziapi.com/api.php/provide/vod/";
     let dp = null;
 
-    window.onload = () => { search(true); };
+    // 页面加载自动获取首页更新
+    window.onload = () => fetchData(`&h=24`);
 
-    async function search(isInit = false) {
-        const kw = document.getElementById('kw').value;
+    async function fetchData(params) {
         const grid = document.getElementById('mainGrid');
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:#666;">正在连接影视库...</div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:#666;">正在同步最新影视数据...</div>`;
         
-        let url = `${API_SOURCE}?ac=videolist`;
-        if(!isInit && kw) url += `&wd=${encodeURIComponent(kw)}`;
-        else url += `&h=24`;
-
         try {
-            const res = await fetch(url);
+            const res = await fetch(`${API_URL}?ac=videolist${params}`);
             const data = await res.json();
-            grid.innerHTML = "";
+            
             if(!data.list || data.list.length === 0) {
-                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px;">未搜到内容，请检查拼写</div>`;
+                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px;">未搜到相关内容，请尝试缩短关键词。</div>`;
                 return;
             }
+
+            grid.innerHTML = "";
             data.list.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'movie-card';
                 card.innerHTML = `<img src="${item.vod_pic}"><div class="meta">${item.vod_name}</div>`;
-                card.onclick = () => initEpisodes(item);
+                card.onclick = () => showEpisodes(item);
                 grid.appendChild(card);
             });
         } catch (e) {
-            grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:red;">网络连接失败，请确保网络通畅</div>`;
+            grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:red;">接口连通失败，请检查网络或稍后再试。</div>`;
         }
     }
 
-    function initEpisodes(item) {
+    function search() {
+        const val = document.getElementById('kw').value;
+        if(val) {
+            document.getElementById('gridTitle').innerText = `🔍 “${val}” 的搜索结果`;
+            fetchData(`&wd=${encodeURIComponent(val)}`);
+        }
+    }
+
+    function showEpisodes(item) {
         document.getElementById('player-wrap').style.display = 'block';
         window.scrollTo({top: 0, behavior: 'smooth'});
         const epGrid = document.getElementById('episodeGrid');
         epGrid.innerHTML = "";
 
-        // 解析最初的集数格式
-        const playUrls = item.vod_play_url.split('$$$')[0].split('#');
-        playUrls.forEach((ep, index) => {
+        // 恢复最初的集数解析逻辑，解决集数显示问题
+        const rawUrl = item.vod_play_url.split('$$$')[0];
+        const eps = rawUrl.split('#');
+
+        eps.forEach((ep, index) => {
             const info = ep.split('$');
             if(info.length < 2) return;
             const btn = document.createElement('button');
@@ -96,15 +114,22 @@
             btn.onclick = () => {
                 document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                if (dp) dp.destroy();
-                dp = new DPlayer({
-                    container: document.getElementById('dplayer'),
-                    autoplay: true,
-                    video: { url: info[1], type: 'hls' }
-                });
+                playVideo(info[1]);
             };
             epGrid.appendChild(btn);
             if(index === 0) btn.click();
+        });
+    }
+
+    function playVideo(url) {
+        if (dp) dp.destroy();
+        dp = new DPlayer({
+            container: document.getElementById('dplayer'),
+            autoplay: true,
+            video: { 
+                url: url, 
+                type: 'hls'
+            }
         });
     }
 </script>
