@@ -32,12 +32,12 @@
         <div class="top-row">
             <div style="font-size: 24px;">🐷</div>
             <div class="search-box">
-                <input type="text" id="kw" placeholder="输入你想看的..." onkeydown="if(event.keyCode==13) search()">
+                <input type="text" id="kw" placeholder="输入你想看的片名..." onkeydown="if(event.keyCode==13) search()">
                 <button class="btn" onclick="search()">搜索</button>
             </div>
-            <select id="apiIdx" onchange="refresh()" style="background:#000; color:#fff; border:1px solid #444; padding:8px; border-radius:6px;">
-                <option value="0">稳定线路1</option>
-                <option value="1">稳定线路2</option>
+            <select id="apiIdx" onchange="refresh()" style="background:#000; color:#fff; border:1px solid #444; padding:8px; border-radius:6px; cursor:pointer;">
+                <option value="0">量子线路 (最推荐)</option>
+                <option value="1">天空线路 (备用)</option>
             </select>
         </div>
     </header>
@@ -51,9 +51,9 @@
 </div>
 
 <script>
-    // 使用自带跨域支持的公益接口地址
+    // 强制使用支持 HTTPS 的接口
     const APIS = [
-        "https://api.okzy.tv/api.php/provide/vod/",
+        "https://cj.lziapi.com/api.php/provide/vod/",
         "https://api.tiankongapi.com/api.php/provide/vod/"
     ];
 
@@ -61,14 +61,20 @@
 
     async function fetchData(api, params) {
         const grid = document.getElementById('mainGrid');
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px;">加载中...</div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px;">🎬 正在连接极速资源站...</div>`;
         
         try {
-            // 使用 JSONP 思想或直接通过公开 API 获取
+            // 使用极速直连模式，不走任何代理
             const res = await fetch(`${api}?ac=videolist${params}`);
+            if (!res.ok) throw new Error('网络异常');
             const data = await res.json();
             
             grid.innerHTML = "";
+            if(!data.list || data.list.length === 0) {
+                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px;">未搜到结果，请换个关键词试试</div>`;
+                return;
+            }
+
             data.list.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'movie-card';
@@ -77,13 +83,17 @@
                 grid.appendChild(card);
             });
         } catch (e) {
-            grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:red;">接口加载失败，请点击右上角切换线路</div>`;
+            grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:#ff4444;">
+                ⚠️ 接口被浏览器拦截<br><br>
+                <small>请点击右上角切换到【天空线路】试试</small><br><br>
+                <button class="btn" onclick="refresh()">重试</button>
+            </div>`;
         }
     }
 
     function search() {
         const kw = document.getElementById('kw').value;
-        fetchData(APIS[document.getElementById('apiIdx').value], `&wd=${encodeURIComponent(kw)}`);
+        if(kw) fetchData(APIS[document.getElementById('apiIdx').value], `&wd=${encodeURIComponent(kw)}`);
     }
 
     function refresh() {
@@ -96,6 +106,7 @@
         const epGrid = document.getElementById('episodeGrid');
         epGrid.innerHTML = "";
 
+        // 智能解析播放列表
         const rawList = item.vod_play_url.split('#');
         rawList.forEach((line, index) => {
             const parts = line.split('$');
@@ -106,7 +117,7 @@
             btn.onclick = () => {
                 document.querySelectorAll('.ep-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
-                if (dp) dp.destroy();
+                if (window.dp) window.dp.destroy();
                 window.dp = new DPlayer({
                     container: document.getElementById('dplayer'),
                     autoplay: true,
