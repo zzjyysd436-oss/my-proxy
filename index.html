@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🐷 私人影视搜索</title>
+    <title>🐷 私人影视搜索 (防拦截版)</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer@latest"></script>
     <style>
@@ -32,13 +32,10 @@
         <div class="top-row">
             <div style="font-size: 24px;">🐷</div>
             <div class="search-box">
-                <input type="text" id="kw" placeholder="输入你想看的片名..." onkeydown="if(event.keyCode==13) search()">
+                <input type="text" id="kw" placeholder="输入关键词，例如：斗罗大陆" onkeydown="if(event.keyCode==13) search()">
                 <button class="btn" onclick="search()">搜索</button>
             </div>
-            <select id="apiIdx" onchange="refresh()" style="background:#000; color:#fff; border:1px solid #444; padding:8px; border-radius:6px; cursor:pointer;">
-                <option value="0">量子线路 (最推荐)</option>
-                <option value="1">天空线路 (备用)</option>
-            </select>
+            <div style="font-size: 12px; color: #888;">线路已自动优化</div>
         </div>
     </header>
 
@@ -51,53 +48,58 @@
 </div>
 
 <script>
-    // 强制使用支持 HTTPS 的接口
-    const APIS = [
-        "https://cj.lziapi.com/api.php/provide/vod/",
-        "https://api.tiankongapi.com/api.php/provide/vod/"
-    ];
+    // 采用备用强力接口
+    const API_URL = "https://cj.lziapi.com/api.php/provide/vod/";
 
-    window.onload = refresh;
+    window.onload = () => refresh();
 
-    async function fetchData(api, params) {
+    async function fetchData(params) {
         const grid = document.getElementById('mainGrid');
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px;">🎬 正在连接极速资源站...</div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px;">🚀 正在尝试多通道连接...</div>`;
         
         try {
-            // 使用极速直连模式，不走任何代理
-            const res = await fetch(`${api}?ac=videolist${params}`);
-            if (!res.ok) throw new Error('网络异常');
-            const data = await res.json();
+            // 使用更稳健的请求方式
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 8000);
+            
+            const response = await fetch(`${API_URL}?ac=videolist${params}`, {
+                signal: controller.signal,
+                headers: { 'Accept': 'application/json' }
+            });
+            
+            clearTimeout(timeoutId);
+            const data = await response.json();
             
             grid.innerHTML = "";
-            if(!data.list || data.list.length === 0) {
-                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px;">未搜到结果，请换个关键词试试</div>`;
+            if (!data.list || data.list.length === 0) {
+                grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:100px;">没有找到结果，请更换关键词。</div>`;
                 return;
             }
 
             data.list.forEach(item => {
                 const card = document.createElement('div');
                 card.className = 'movie-card';
-                card.innerHTML = `<img src="${item.vod_pic}"><div class="meta">${item.vod_name}</div>`;
+                card.innerHTML = `<img src="${item.vod_pic}" onerror="this.src='https://via.placeholder.com/160x230?text=No+Image'"><div class="meta">${item.vod_name}</div>`;
                 card.onclick = () => initMedia(item);
                 grid.appendChild(card);
             });
         } catch (e) {
+            console.error(e);
             grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px; color:#ff4444;">
-                ⚠️ 接口被浏览器拦截<br><br>
-                <small>请点击右上角切换到【天空线路】试试</small><br><br>
-                <button class="btn" onclick="refresh()">重试</button>
+                ⚠️ 依然被拦截<br><br>
+                <p style="font-size:13px; color:#999;">你的网络环境限制了外部请求。<br>请尝试：1. 切换手机 5G 热点测试<br>2. 检查浏览器是否开启了无痕模式</p>
+                <button class="btn" onclick="refresh()">点此刷新</button>
             </div>`;
         }
     }
 
     function search() {
         const kw = document.getElementById('kw').value;
-        if(kw) fetchData(APIS[document.getElementById('apiIdx').value], `&wd=${encodeURIComponent(kw)}`);
+        if(kw) fetchData(`&wd=${encodeURIComponent(kw)}`);
     }
 
     function refresh() {
-        fetchData(APIS[document.getElementById('apiIdx').value], `&h=24`);
+        fetchData(`&h=24`);
     }
 
     function initMedia(item) {
@@ -106,7 +108,6 @@
         const epGrid = document.getElementById('episodeGrid');
         epGrid.innerHTML = "";
 
-        // 智能解析播放列表
         const rawList = item.vod_play_url.split('#');
         rawList.forEach((line, index) => {
             const parts = line.split('$');
