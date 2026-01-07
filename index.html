@@ -3,86 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🐷 私人影院 (稳定版)</title>
+    <title>🐷 私人影院</title>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
     <script src="https://cdn.jsdelivr.net/npm/dplayer@latest"></script>
     <style>
         :root { --primary: #ff85a2; --bg: #0a0a0a; --card: #1a1a1a; }
-        body { font-family: 'PingFang SC', sans-serif; background: var(--bg); color: #fff; margin: 0; padding: 15px; }
-        .container { max-width: 1200px; margin: 0 auto; }
-        header { background: var(--card); padding: 15px; border-radius: 12px; border: 1px solid #333; margin-bottom: 20px; display: flex; align-items: center; gap: 15px; }
-        .search-box { display: flex; gap: 10px; flex: 1; }
-        input { flex: 1; padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; outline: none; }
-        .btn { padding: 8px 20px; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; background: var(--primary); color: #fff; }
-        #player-wrap { display: none; margin-bottom: 25px; border-radius: 12px; overflow: hidden; background: #000; border: 1px solid #333; position: relative; }
-        #dplayer { width: 100%; height: 480px; }
-        #iframe-player { width: 100%; height: 480px; border: none; display: none; }
-        .episode-container { padding: 15px; background: #151515; }
-        .episode-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); gap: 8px; max-height: 200px; overflow-y: auto; }
-        .ep-btn { background: #222; color: #ccc; border: 1px solid #333; padding: 8px; border-radius: 4px; cursor: pointer; font-size: 11px; text-align: center; }
+        body { font-family: 'PingFang SC', sans-serif; background: var(--bg); color: #fff; margin: 0; padding: 10px; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        header { background: var(--card); padding: 12px; border-radius: 10px; margin-bottom: 15px; display: flex; gap: 10px; border: 1px solid #333; }
+        input { flex: 1; padding: 8px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; outline: none; }
+        .btn { padding: 8px 15px; border-radius: 5px; border: none; background: var(--primary); color: #fff; font-weight: bold; cursor: pointer; }
+        
+        #player-box { display: none; margin-bottom: 15px; background: #000; border-radius: 10px; overflow: hidden; border: 1px solid #333; }
+        #video-container { width: 100%; height: 0; padding-bottom: 56.25%; position: relative; }
+        #video-container iframe, #video-container #dplayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+        
+        .ep-wrap { padding: 10px; background: #151515; }
+        .ep-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(65px, 1fr)); gap: 6px; max-height: 150px; overflow-y: auto; }
+        .ep-btn { background: #222; color: #ccc; border: 1px solid #333; padding: 6px; border-radius: 4px; font-size: 11px; cursor: pointer; }
         .ep-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; }
-        .movie-card { background: var(--card); border-radius: 8px; overflow: hidden; cursor: pointer; border: 1px solid #333; transition: 0.2s; }
-        .movie-card img { width: 100%; height: 200px; object-fit: cover; }
-        .movie-card .meta { padding: 8px; text-align: center; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; }
+        .movie-card { background: var(--card); border-radius: 8px; overflow: hidden; border: 1px solid #333; cursor: pointer; }
+        .movie-card img { width: 100%; height: 180px; object-fit: cover; }
+        .movie-card .meta { padding: 6px; text-align: center; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     </style>
 </head>
 <body>
 <div class="container">
     <header>
-        <div style="font-size: 24px; cursor: pointer;" onclick="location.reload()">🐷</div>
-        <div class="search-box">
-            <input type="text" id="kw" placeholder="输入片名搜索..." onkeydown="if(event.keyCode==13) search()">
-            <button class="btn" onclick="search()">搜索</button>
-        </div>
+        <input type="text" id="kw" placeholder="搜索片名..." onkeydown="if(event.keyCode==13) search()">
+        <button class="btn" onclick="search()">搜索</button>
     </header>
-    <div id="player-wrap">
-        <div id="dplayer"></div>
-        <iframe id="iframe-player" allowfullscreen="true"></iframe>
-        <div class="episode-container"><div id="episodeGrid" class="episode-grid"></div></div>
+
+    <div id="player-box">
+        <div id="video-container">
+            <div id="dplayer"></div>
+            <iframe id="ifr" allowfullscreen="true" style="display:none;"></iframe>
+        </div>
+        <div class="ep-wrap"><div id="epGrid" class="ep-grid"></div></div>
     </div>
+
     <div id="mainGrid" class="grid"></div>
 </div>
 
 <script>
-    const API_URL = "https://cj.lziapi.com/api.php/provide/vod/";
-    const JX_API = "https://jx.jsonplayer.com/player/?url="; // 云端解析引擎
+    const API = "https://cj.lziapi.com/api.php/provide/vod/";
+    // 备用解析列表，如果第一个打不开会自动换
+    const JX_LIST = [
+        "https://jx.jsonplayer.com/player/?url=",
+        "https://jx.aidouer.net/?url=",
+        "https://www.mtosz.com/ylys.php?url="
+    ];
     let dp = null;
 
-    window.onload = () => fetchData(`&h=24`);
+    window.onload = () => loadList(`&h=24`);
 
-    async function fetchData(params) {
+    async function loadList(p) {
         const grid = document.getElementById('mainGrid');
-        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:50px;">正在加载...</div>`;
+        grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:30px;">加载中...</div>`;
         try {
-            const res = await fetch(`${API_URL}?ac=videolist${params}`);
+            const res = await fetch(`${API}?ac=videolist${p}`);
             const data = await res.json();
             grid.innerHTML = "";
-            if(!data.list) return;
             data.list.forEach(item => {
-                const card = document.createElement('div');
-                card.className = 'movie-card';
-                card.innerHTML = `<img src="${item.vod_pic}"><div class="meta">${item.vod_name}</div>`;
-                card.onclick = () => showEpisodes(item);
-                grid.appendChild(card);
+                const div = document.createElement('div');
+                div.className = 'movie-card';
+                div.innerHTML = `<img src="${item.vod_pic}"><div class="meta">${item.vod_name}</div>`;
+                div.onclick = () => showEps(item);
+                grid.appendChild(div);
             });
-        } catch (e) { grid.innerHTML = "加载失败，请刷新"; }
+        } catch(e) { grid.innerHTML = "同步失败，请刷新"; }
     }
 
     function search() {
         const val = document.getElementById('kw').value;
-        if(val) fetchData(`&wd=${encodeURIComponent(val)}`);
+        if(val) loadList(`&wd=${encodeURIComponent(val)}`);
     }
 
-    function showEpisodes(item) {
-        document.getElementById('player-wrap').style.display = 'block';
+    function showEps(item) {
+        document.getElementById('player-box').style.display = 'block';
         window.scrollTo({top: 0, behavior: 'smooth'});
-        const epGrid = document.getElementById('episodeGrid');
-        epGrid.innerHTML = "";
-        const rawUrl = item.vod_play_url.split('$$$')[0];
-        const eps = rawUrl.split('#');
+        const grid = document.getElementById('epGrid');
+        grid.innerHTML = "";
+        const eps = item.vod_play_url.split('$$$')[0].split('#');
 
-        eps.forEach((ep, index) => {
+        eps.forEach((ep, i) => {
             const info = ep.split('$');
             if(info.length < 2) return;
             const btn = document.createElement('button');
@@ -93,31 +99,47 @@
                 btn.classList.add('active');
                 play(info[1]);
             };
-            epGrid.appendChild(btn);
-            if(index === 0) btn.click();
+            grid.appendChild(btn);
+            if(i === 0) btn.click();
         });
     }
 
     function play(url) {
-        // 逻辑：优先尝试 DPlayer 播放，如果失败则切换到万能解析 iframe
-        document.getElementById('dplayer').style.display = 'block';
-        document.getElementById('iframe-player').style.display = 'none';
-        
-        if (dp) dp.destroy();
+        const dBox = document.getElementById('dplayer');
+        const iBox = document.getElementById('ifr');
+        dBox.style.display = 'block';
+        iBox.style.display = 'none';
+
+        if(dp) dp.destroy();
         dp = new DPlayer({
-            container: document.getElementById('dplayer'),
+            container: dBox,
             autoplay: true,
             video: { url: url, type: 'hls' }
         });
 
-        // 核心：监听加载失败事件
-        dp.on('error', function() {
-            console.log("直连失败，启动云端解析...");
-            document.getElementById('dplayer').style.display = 'none';
-            const ifr = document.getElementById('iframe-player');
-            ifr.style.display = 'block';
-            ifr.src = JX_API + url;
+        // 核心纠错：如果 DPlayer 报错，尝试第一个解析口
+        dp.on('error', () => {
+            console.log("内核1失效，切换备用线路...");
+            switchLine(url, 0);
         });
+
+        // 设置超时检查：如果10秒还没播，手动切线
+        setTimeout(() => {
+            if(dp && dp.video.paused && dBox.style.display !== 'none') {
+                switchLine(url, 0);
+            }
+        }, 10000);
+    }
+
+    function switchLine(url, index) {
+        if(index >= JX_LIST.length) return;
+        document.getElementById('dplayer').style.display = 'none';
+        const ifr = document.getElementById('ifr');
+        ifr.style.display = 'block';
+        ifr.src = JX_LIST[index] + url;
+        
+        // 如果 iframe 还是加载失败，5秒后尝试下一个解析口
+        console.log(`尝试解析线路 ${index + 1}`);
     }
 </script>
 </body>
